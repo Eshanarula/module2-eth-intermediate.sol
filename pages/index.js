@@ -18,7 +18,7 @@ export default function CryptoBankPage() {
     if (atm) {
       setBalance((await atm.getBalance()).toNumber());
     }
-  }
+  };
 
   const deposit = async () => {
     if (atm) {
@@ -27,7 +27,7 @@ export default function CryptoBankPage() {
       getBalance();
       addToTransactionHistory("Deposit", 1);
     }
-  }
+  };
 
   const withdraw = async () => {
     if (atm) {
@@ -36,16 +36,16 @@ export default function CryptoBankPage() {
       getBalance();
       addToTransactionHistory("Withdraw", -1);
     }
-  }
+  };
 
-  const transferFunds = async () => {
+  const transferFunds = async (toAddress, amount) => {
     if (atm) {
-      let tx = await atm.TransferFunds("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", 1);
+      let tx = await atm.transferFunds(toAddress, amount);
       await tx.wait();
       getBalance();
-      addToTransactionHistory("Transfer", -1);
+      addToTransactionHistory("Transfer", -amount);
     }
-  }
+  };
 
   const addToTransactionHistory = (action, amount) => {
     const newTransaction = {
@@ -54,11 +54,11 @@ export default function CryptoBankPage() {
       timestamp: new Date().toLocaleString(),
     };
     setTransactionHistory([...transactionHistory, newTransaction]);
-  }
+  };
 
   const clearTransactionHistory = () => {
     setTransactionHistory([]);
-  }
+  };
 
   const getWallet = async () => {
     if (window.ethereum) {
@@ -66,50 +66,28 @@ export default function CryptoBankPage() {
     }
 
     if (ethWallet) {
-      const account = await ethWallet.request({ method: "eth_accounts" });
-      handleAccount(account);
+      const accounts = await ethWallet.request({ method: "eth_accounts" });
+      handleAccount(accounts[0]);
     }
-  }
+  };
 
   const handleAccount = (account) => {
     if (account) {
       console.log("Account connected: ", account);
       setAccount(account);
+      getATMContract();
     } else {
       console.log("No account found");
     }
-  }
-
-  const connectAccount = async () => {
-    if (!ethWallet) {
-      alert('MetaMask wallet is required to connect');
-      return;
-    }
-  
-    const accounts = await ethWallet.request({ method: 'eth_requestAccounts' });
-    handleAccount(accounts);
-    
-    // once wallet is set we can get a reference to our deployed contract
-    getATMContract();
   };
 
-  const getATMContract = () => {
-    const provider = new ethers.providers.Web3Provider(ethWallet);
-    const signer = provider.getSigner();
-    const atmContract = new ethers.Contract(contractAddress, atmABI, signer);
- 
-    setATM(atmContract);
-  }
-
   const initUser = () => {
-    // Check to see if user has Metamask
     if (!ethWallet) {
-      return <p style={{ color: "red" }}>Please install Metamask in order to use this ATM.</p>
+      return <p style={{ color: "red" }}>Please install Metamask in order to use this ATM.</p>;
     }
 
-    // Check to see if user is connected. If not, connect to their account
     if (!account) {
-      return <button onClick={connectAccount}>Please connect your Metamask wallet</button>
+      return <button onClick={connectAccount}>Please connect your Metamask wallet</button>;
     }
 
     if (balance === undefined) {
@@ -119,25 +97,72 @@ export default function CryptoBankPage() {
     return (
       <div>
         <p>Your Account: {account}</p>
-        <p style={{ color: "green" }}>Your Balance: {balance}</p>
-        <button onClick={deposit} style={{ backgroundColor: "DodgerBlue", color: "white" }}>Deposit 1 ETH</button>
-        <button onClick={withdraw} style={{ backgroundColor: "Orange", color: "white" }}>Withdraw 1 ETH</button>
-        <button onClick={transferFunds} style={{ backgroundColor: "Purple", color: "white" }}>Transfer 1 ETH</button>
-        <button onClick={() => setCurrentPage("records")} style={{ backgroundColor: "SlateGray", color: "white" }}>Records</button>
+        <p style={{ color: "green" }}>Your Balance: {balance} ETH</p>
+        <button onClick={deposit} style={{ backgroundColor: "DodgerBlue", color: "white" }}>
+          Deposit 1 ETH
+        </button>
+        <button onClick={withdraw} style={{ backgroundColor: "Orange", color: "white" }}>
+          Withdraw 1 ETH
+        </button>
+        <button
+          onClick={() => setCurrentPage("transfer")}
+          style={{ backgroundColor: "Purple", color: "white" }}
+        >
+          Transfer Funds
+        </button>
+        <button onClick={() => setCurrentPage("records")} style={{ backgroundColor: "SlateGray", color: "white" }}>
+          Records
+        </button>
       </div>
-    )
-  }
+    );
+  };
 
-  useEffect(() => { getWallet(); }, []);
+  const transferFundsForm = () => {
+    const [toAddress, setToAddress] = useState("");
+    const [transferAmount, setTransferAmount] = useState("");
+
+    const handleTransfer = () => {
+      transferFunds(toAddress, parseFloat(transferAmount));
+      setToAddress("");
+      setTransferAmount("");
+    };
+
+    return (
+      <div>
+        <h3 style={{ color: "Teal" }}>Transfer Funds:</h3>
+        <label>
+          To Address:
+          <input type="text" value={toAddress} onChange={(e) => setToAddress(e.target.value)} />
+        </label>
+        <label>
+          Amount (ETH):
+          <input type="number" value={transferAmount} onChange={(e) => setTransferAmount(e.target.value)} />
+        </label>
+        <button onClick={handleTransfer} style={{ backgroundColor: "Purple", color: "white" }}>
+          Transfer
+        </button>
+        <button onClick={() => setCurrentPage("front")} style={{ backgroundColor: "SlateGray", color: "white" }}>
+          Go Back
+        </button>
+      </div>
+    );
+  };
+
+  useEffect(() => {
+    getWallet();
+  }, []);
 
   return (
     <main className="CryptoBank">
-      <header><h1 style={{ color: "MediumBlue" }}>Hello User </h1></header>
+      <header>
+        <h1 style={{ color: "MediumBlue" }}>Hello User </h1>
+      </header>
       <h2>{meMessage}</h2>
 
-      {currentPage === "front" ? (
-        initUser()
-      ) : (
+      {currentPage === "front" && initUser()}
+      {currentPage === "transfer" && transferFundsForm()}
+
+      {currentPage === "records" && (
         <div>
           <h3 style={{ color: "Teal" }}>Records:</h3>
           <ul>
@@ -147,8 +172,12 @@ export default function CryptoBankPage() {
               </li>
             ))}
           </ul>
-          <button onClick={() => setCurrentPage("front")} style={{ backgroundColor: "SlateGray", color: "white" }}>Go Back</button>
-          <button onClick={clearTransactionHistory} style={{ backgroundColor: "FireBrick", color: "white" }}>Clear Records</button>
+          <button onClick={() => setCurrentPage("front")} style={{ backgroundColor: "SlateGray", color: "white" }}>
+            Go Back
+          </button>
+          <button onClick={clearTransactionHistory} style={{ backgroundColor: "FireBrick", color: "white" }}>
+            Clear Records
+          </button>
         </div>
       )}
 
@@ -160,8 +189,7 @@ export default function CryptoBankPage() {
           text-align: center;
           font-family: Arial, sans-serif;
         }
-      `}
-      </style>
+      `}</style>
     </main>
-  )
+  );
 }
